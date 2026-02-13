@@ -4,4 +4,4 @@ Development log and progress updates.
 
 | Date | Post |
 |------|------|
-| 2026-02-13 | [Docs site, roadmap, and timeout fixes](2026-02-13-docs-roadmap-and-timeout-fixes.md) |
+| 2026-02-13 | [Starting Voice Chat](2026-02-13-docs-roadmap-and-timeout-fixes.md) |
