@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voice Chat</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+#chat {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.msg {
+  max-width: 80%;
+  padding: 0.75rem 1rem;
+  border-radius: 1rem;
+  line-height: 1.5;
+  font-size: 0.95rem;
+}
+.msg.user {
+  align-self: flex-end;
+  background: #3a86ff;
+  color: #fff;
+  border-bottom-right-radius: 0.25rem;
+}
+.msg.assistant {
+  align-self: flex-start;
+  background: #2a2a4a;
+  border-bottom-left-radius: 0.25rem;
+}
+#controls {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  background: #16162a;
+}
+#status {
+  font-size: 0.85rem;
+  color: #888;
+  min-height: 1.2em;
+}
+#mic {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: none;
+  background: #3a86ff;
+  color: #fff;
+  font-size: 1.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#mic:hover { background: #2a76ef; }
+#mic.recording {
+  background: #e63946;
+  animation: pulse 1s infinite;
+}
+#mic:disabled { opacity: 0.4; cursor: not-allowed; }
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(230,57,70,0.5); }
+  50% { box-shadow: 0 0 0 12px rgba(230,57,70,0); }
+}
+</style>
+</head>
+<body>
+
+<div id="chat"></div>
+
+<div id="controls">
+  <div id="status">Tap mic to speak</div>
+  <button id="mic">&#127908;</button>
+</div>
+
+<script>
+const chat = document.getElementById('chat');
+const mic = document.getElementById('mic');
+const status = document.getElementById('status');
+let mediaRecorder = null;
+let audioChunks = [];
+let recording = false;
+let history = [];
+
+function addMessage(role, text) {
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.textContent = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function setStatus(msg) { status.textContent = msg; }
+
+async function startRecording() {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+  audioChunks = [];
+  mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+  mediaRecorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); processAudio(); };
+  mediaRecorder.start();
+  recording = true;
+  mic.classList.add('recording');
+  setStatus('Recording...');
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+  }
+  recording = false;
+  mic.classList.remove('recording');
+}
+
+async function processAudio() {
+  mic.disabled = true;
+
+  // Transcribe
+  setStatus('Transcribing...');
+  const blob = new Blob(audioChunks, { type: 'audio/webm' });
+  const form = new FormData();
+  form.append('file', blob, 'recording.webm');
+
+  try {
+    const trResp = await fetch('/api/transcribe', { method: 'POST', body: form });
+    const trData = await trResp.json();
+    const userText = trData.text?.trim();
+    if (!userText) { setStatus('No speech detected. Tap mic to try again.'); mic.disabled = false; return; }
+
+    addMessage('user', userText);
+    history.push({ role: 'user', content: userText });
+
+    // Chat
+    setStatus('Thinking...');
+    const chatResp = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: userText, history: history.slice(0, -1) }),
+    });
+    const chatData = await chatResp.json();
+    const assistantText = chatData.response;
+
+    addMessage('assistant', assistantText);
+    history.push({ role: 'assistant', content: assistantText });
+
+    // Speak
+    setStatus('Speaking...');
+    const speakResp = await fetch('/api/speak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: assistantText }),
+    });
+    const audioBlob = await speakResp.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(audioUrl);
+    audio.onended = () => { URL.revokeObjectURL(audioUrl); setStatus('Tap mic to speak'); mic.disabled = false; };
+    audio.onerror = () => { setStatus('Audio playback error. Tap mic to speak.'); mic.disabled = false; };
+    audio.play();
+
+  } catch (err) {
+    console.error(err);
+    setStatus('Error: ' + err.message);
+    mic.disabled = false;
+  }
+}
+
+mic.addEventListener('mousedown', () => { if (!mic.disabled) startRecording(); });
+mic.addEventListener('mouseup', stopRecording);
+mic.addEventListener('mouseleave', () => { if (recording) stopRecording(); });
+mic.addEventListener('touchstart', e => { e.preventDefault(); if (!mic.disabled) startRecording(); });
+mic.addEventListener('touchend', e => { e.preventDefault(); stopRecording(); });
+</script>
+</body>
+</html>
