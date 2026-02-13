@@ -2,13 +2,15 @@
 
 ## Server Settings
 
-Configuration is set in `mcp_server.py` via constants:
+Configuration is set via constants in `mcp_server.py` and environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `WHISPER_URL` | `http://127.0.0.1:2022` | Whisper STT server base URL |
 | `KOKORO_URL` | `http://127.0.0.1:8880` | Kokoro TTS server base URL |
-| `WS_PORT` | `3456` | WebSocket / HTTP server port |
+| `WS_PORT` / `VOICE_CHAT_PORT` | `3456` | WebSocket / HTTP server port |
+
+The port can be overridden via the `VOICE_CHAT_PORT` environment variable.
 
 ## Voice Services
 
@@ -64,6 +66,14 @@ tailscale serve status
 
 ```bash
 sudo tailscale serve --https=3456 off
+```
+
+## Logging
+
+Server logs are written to `/tmp/voice-chat.log` and stderr. Watch in real time:
+
+```bash
+tail -f /tmp/voice-chat.log
 ```
 
 ## Ports Summary

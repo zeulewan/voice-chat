@@ -10,6 +10,8 @@ browser records → Whisper STT → returns text to Claude.
 
 import asyncio
 import base64
+import logging
+import os
 import sys
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -24,12 +26,24 @@ from fastmcp import FastMCP
 
 WHISPER_URL = "http://127.0.0.1:2022"
 KOKORO_URL = "http://127.0.0.1:8880"
-WS_PORT = 3456
+WS_PORT = int(os.environ.get("VOICE_CHAT_PORT", "3456"))
+LOG_FILE = "/tmp/voice-chat.log"
+
+# Set up logging to both stderr and file
+_logger = logging.getLogger("voice-chat")
+_logger.setLevel(logging.DEBUG)
+_fmt = logging.Formatter("%(asctime)s %(message)s", datefmt="%H:%M:%S")
+_stderr_handler = logging.StreamHandler(sys.stderr)
+_stderr_handler.setFormatter(_fmt)
+_logger.addHandler(_stderr_handler)
+_file_handler = logging.FileHandler(LOG_FILE, mode="a")
+_file_handler.setFormatter(_fmt)
+_logger.addHandler(_file_handler)
 
 
 def log(msg: str) -> None:
-    """Log to stderr (stdout is reserved for MCP stdio protocol)."""
-    print(msg, file=sys.stderr, flush=True)
+    """Log to stderr and /tmp/voice-chat.log (stdout is reserved for MCP stdio)."""
+    _logger.info(msg)
 
 
 # --- Shared state between WebSocket and MCP tools ---
@@ -60,63 +74,88 @@ async def index():
 @web_app.websocket("/ws")
 async def websocket_endpoint(ws: WebSocket):
     await ws.accept()
-    log("Browser connected")
+    log("Browser connected via WebSocket")
 
     # Last connection wins (single user)
+    old_ws = bridge.ws
     bridge.ws = ws
     bridge.connected.set()
 
+    if old_ws is not None:
+        log("Replacing previous WebSocket connection")
+
     # Drain any stale audio from previous sessions
+    drained = 0
     while not bridge.audio_queue.empty():
         try:
             bridge.audio_queue.get_nowait()
+            drained += 1
         except asyncio.QueueEmpty:
             break
+    if drained:
+        log(f"Drained {drained} stale audio message(s) from queue")
 
     try:
         while True:
             data = await ws.receive_json()
             msg_type = data.get("type")
+            log(f"WS recv: type={msg_type}" + (f" data_len={len(data.get('data', ''))}" if msg_type == "audio" else ""))
 
             if msg_type == "audio":
                 audio_bytes = base64.b64decode(data["data"])
+                log(f"Audio received: {len(audio_bytes)} bytes, putting in queue (qsize={bridge.audio_queue.qsize()})")
                 await bridge.audio_queue.put(audio_bytes)
+                log(f"Audio queued (qsize={bridge.audio_queue.qsize()})")
 
             elif msg_type == "playback_done":
+                log("Playback done signal received, setting event")
                 bridge.playback_done.set()
 
     except WebSocketDisconnect:
-        log("Browser disconnected")
+        log("Browser disconnected (WebSocketDisconnect)")
     except Exception as e:
-        log(f"WebSocket error: {e}")
+        log(f"WebSocket error: {type(e).__name__}: {e}")
     finally:
         if bridge.ws is ws:
             bridge.ws = None
             bridge.connected.clear()
             bridge.playback_done.set()  # Unblock any waiting converse()
+            log("Bridge cleared (this was the active connection)")
+        else:
+            log("Old connection closed (not the active one)")
 
 
 # --- FastMCP server with lifespan ---
 
 
 async def run_webserver():
-    """Run uvicorn as a background async task."""
-    config = uvicorn.Config(
-        web_app,
-        host="127.0.0.1",
-        port=WS_PORT,
-        log_config=None,
-        log_level="error",
-    )
-    server = uvicorn.Server(config)
-    await server.serve()
+    """Run uvicorn, retrying every 5s if port is in use."""
+    while True:
+        config = uvicorn.Config(
+            web_app,
+            host="127.0.0.1",
+            port=WS_PORT,
+            log_config=None,
+            log_level="error",
+        )
+        server = uvicorn.Server(config)
+        try:
+            await server.serve()
+            break  # Clean exit
+        except SystemExit:
+            # uvicorn raises SystemExit on bind failure
+            log(f"Port {WS_PORT} in use, retrying in 5s...")
+            await asyncio.sleep(5)
+        except Exception as e:
+            log(f"WebSocket server error: {e}, retrying in 5s...")
+            await asyncio.sleep(5)
 
 
 @asynccontextmanager
 async def lifespan(server: FastMCP) -> AsyncIterator[dict]:
     """Start the WebSocket server alongside the MCP stdio server."""
     task = asyncio.create_task(run_webserver())
-    log(f"WebSocket server started on port {WS_PORT}")
+    log(f"WebSocket server starting on port {WS_PORT}")
     try:
         yield {}
     finally:
@@ -150,7 +189,10 @@ async def converse(
     Returns:
         The user's transcribed speech, or a status message if not listening.
     """
+    log(f"converse() called: message={message!r:.80}, wait={wait_for_response}, voice={voice}")
+
     if bridge.ws is None:
+        log("converse() error: no browser connected")
         return "Error: No browser connected. Open the Voice Chat page first."
 
     ws = bridge.ws
@@ -158,8 +200,10 @@ async def converse(
     try:
         # Send status
         await ws.send_json({"type": "status", "text": "Speaking..."})
+        log("Sent status: Speaking...")
 
         # TTS: text → mp3
+        log(f"Calling Kokoro TTS at {KOKORO_URL}...")
         async with httpx.AsyncClient(timeout=30) as client:
             tts_resp = await client.post(
                 f"{KOKORO_URL}/v1/audio/speech",
@@ -171,40 +215,54 @@ async def converse(
                 },
             )
             tts_resp.raise_for_status()
+        log(f"TTS response: {len(tts_resp.content)} bytes MP3")
 
         # Send audio to browser
         audio_b64 = base64.b64encode(tts_resp.content).decode()
         bridge.playback_done.clear()
         await ws.send_json({"type": "audio", "data": audio_b64})
+        log(f"Sent audio to browser ({len(audio_b64)} chars b64)")
 
         if not wait_for_response:
             await ws.send_json({"type": "done"})
+            log("converse() done (no wait)")
             return "Message delivered."
 
         # Wait for browser to finish playing audio
+        log("Waiting for playback_done event...")
         await asyncio.wait_for(bridge.playback_done.wait(), timeout=60)
+        log("Playback done")
 
         if bridge.ws is None:
+            log("converse() error: browser disconnected during playback")
             return "Error: Browser disconnected during playback."
 
         # Drain stale audio
+        drained = 0
         while not bridge.audio_queue.empty():
             try:
                 bridge.audio_queue.get_nowait()
+                drained += 1
             except asyncio.QueueEmpty:
                 break
+        if drained:
+            log(f"Drained {drained} stale audio message(s)")
 
         # Tell browser to start recording
         await ws.send_json({"type": "listening"})
+        log("Sent listening signal, waiting for recorded audio...")
 
         # Wait for recorded audio
         audio_bytes = await asyncio.wait_for(bridge.audio_queue.get(), timeout=120)
+        log(f"Got recorded audio: {len(audio_bytes)} bytes")
 
         if bridge.ws is None:
+            log("converse() error: browser disconnected during recording")
             return "Error: Browser disconnected during recording."
 
         # STT: webm → text
         await ws.send_json({"type": "status", "text": "Transcribing..."})
+        log(f"Calling Whisper STT at {WHISPER_URL}...")
         async with httpx.AsyncClient(timeout=30) as client:
             stt_resp = await client.post(
                 f"{WHISPER_URL}/v1/audio/transcriptions",
@@ -216,17 +274,23 @@ async def converse(
             stt_resp.raise_for_status()
 
         text = stt_resp.json().get("text", "").strip()
+        log(f"STT result: {text!r:.100}")
         if not text:
+            await ws.send_json({"type": "done"})
             return "(no speech detected)"
 
         await ws.send_json({"type": "done"})
+        log(f"converse() returning: {text!r:.100}")
         return text
 
     except asyncio.TimeoutError:
+        log("converse() error: timeout")
         return "Error: Timed out waiting for response."
     except WebSocketDisconnect:
+        log("converse() error: WebSocketDisconnect")
         return "Error: Browser disconnected."
     except Exception as e:
+        log(f"converse() error: {type(e).__name__}: {e}")
         return f"Error: {e}"
 
 
@@ -237,7 +301,9 @@ async def voice_chat_status() -> str:
     Returns:
         Connection status string.
     """
-    if bridge.ws is not None:
+    connected = bridge.ws is not None
+    log(f"voice_chat_status() called: connected={connected}")
+    if connected:
         return "Connected: Browser is connected and ready."
     return "Disconnected: No browser connected. Open https://workstation.tailee9084.ts.net:3456 in your browser."
 

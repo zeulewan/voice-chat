@@ -124,7 +124,6 @@ let ws = null;
 let mediaRecorder = null;
 let audioChunks = [];
 let recording = false;
-let autoRecord = false; // true when server asks us to listen
 
 function addMessage(role, text) {
   const div = document.createElement('div');
@@ -134,7 +133,10 @@ function addMessage(role, text) {
   chat.scrollTop = chat.scrollHeight;
 }
 
-function setStatus(msg) { status.textContent = msg; }
+function setStatus(msg) {
+  console.log('[status]', msg);
+  status.textContent = msg;
+}
 
 function setConnected(connected) {
   dot.classList.toggle('connected', connected);
@@ -149,37 +151,41 @@ function setConnected(connected) {
 
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(`${proto}//${location.host}/ws`);
+  const url = `${proto}//${location.host}/ws`;
+  console.log('[ws] Connecting to', url);
+  ws = new WebSocket(url);
 
   ws.onopen = () => {
+    console.log('[ws] Connected');
     setConnected(true);
-    setStatus('Connected — waiting for Claude');
+    setStatus('Connected — waiting for Claude (/voice-chat)');
     mic.disabled = false;
   };
 
-  ws.onclose = () => {
+  ws.onclose = (e) => {
+    console.log('[ws] Closed:', e.code, e.reason);
     setConnected(false);
     ws = null;
-    // Reconnect after 2s
     setTimeout(connect, 2000);
   };
 
-  ws.onerror = () => {
+  ws.onerror = (e) => {
+    console.error('[ws] Error:', e);
     ws?.close();
   };
 
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
+    console.log('[ws] Received:', data.type, data.type === 'audio' ? `(${data.data.length} chars)` : data.text || '');
 
     if (data.type === 'audio') {
       playAudio(data.data);
     } else if (data.type === 'listening') {
-      autoRecord = true;
       startRecording();
     } else if (data.type === 'status') {
       setStatus(data.text);
     } else if (data.type === 'done') {
-      setStatus('Connected — waiting for Claude');
+      setStatus('Ready');
       mic.disabled = false;
     }
   };
@@ -196,14 +202,15 @@ function playAudio(b64data) {
   const audio = new Audio(url);
 
   audio.onended = () => {
+    console.log('[audio] Playback ended, sending playback_done');
     URL.revokeObjectURL(url);
-    // Signal server that playback is done
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'playback_done' }));
     }
   };
 
-  audio.onerror = () => {
+  audio.onerror = (e) => {
+    console.error('[audio] Playback error:', e);
     URL.revokeObjectURL(url);
     setStatus('Audio playback error');
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -211,18 +218,26 @@ function playAudio(b64data) {
     }
   };
 
-  audio.play();
+  audio.play().catch(e => {
+    console.error('[audio] play() rejected:', e);
+    setStatus('Audio play blocked — tap page first');
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'playback_done' }));
+    }
+  });
 }
 
 // --- Recording ---
 
 async function startRecording() {
+  console.log('[mic] Starting recording...');
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
     audioChunks = [];
     mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
     mediaRecorder.onstop = () => {
+      console.log('[mic] Recording stopped, chunks:', audioChunks.length);
       stream.getTracks().forEach(t => t.stop());
       sendAudio();
     };
@@ -232,29 +247,43 @@ async function startRecording() {
     mic.disabled = false;
     setStatus('Recording... tap to stop');
   } catch (err) {
+    console.error('[mic] getUserMedia error:', err);
     setStatus('Microphone access denied');
-    autoRecord = false;
   }
 }
 
 function stopRecording() {
   if (mediaRecorder && mediaRecorder.state === 'recording') {
+    console.log('[mic] Stopping recording...');
     mediaRecorder.stop();
   }
   recording = false;
   mic.classList.remove('recording');
-  mic.disabled = true;
-  autoRecord = false;
 }
 
 function sendAudio() {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  setStatus('Sending audio...');
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    console.error('[send] WebSocket not open, cannot send audio');
+    setStatus('Not connected');
+    return;
+  }
+
   const blob = new Blob(audioChunks, { type: 'audio/webm' });
+  console.log('[send] Reading audio blob:', blob.size, 'bytes');
+  setStatus('Processing...');
+  mic.disabled = true;
+
   const reader = new FileReader();
   reader.onload = () => {
     const b64 = reader.result.split(',')[1];
+    console.log('[send] Sending audio:', b64.length, 'chars b64');
     ws.send(JSON.stringify({ type: 'audio', data: b64 }));
+    console.log('[send] Audio sent, waiting for server response...');
+  };
+  reader.onerror = (e) => {
+    console.error('[send] FileReader error:', e);
+    setStatus('Error reading audio');
+    mic.disabled = false;
   };
   reader.readAsDataURL(blob);
 }

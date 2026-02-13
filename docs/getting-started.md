@@ -35,22 +35,15 @@ pip install -r requirements.txt
 
 ## Register MCP Server
 
-Add the voice-chat MCP server to your Claude Code config (`~/.claude.json`):
-
-```json
-{
-  "mcpServers": {
-    "voice-chat": {
-      "type": "stdio",
-      "command": "/path/to/voice-chat/.venv/bin/python",
-      "args": ["/path/to/voice-chat/mcp_server.py"],
-      "env": {}
-    }
-  }
-}
+```bash
+claude mcp add -s user voice-chat -- /path/to/voice-chat/.venv/bin/python /path/to/voice-chat/mcp_server.py
 ```
 
-Replace `/path/to/voice-chat` with the actual path to the cloned repo.
+Replace `/path/to/voice-chat` with the actual path to the cloned repo. Verify with:
+
+```bash
+claude mcp list
+```
 
 ## Remote Access via Tailscale
 
@@ -70,3 +63,11 @@ Then open `https://<your-machine>.ts.net:3456` from any device on your tailnet.
 4. Claude greets you — speak your request when prompted
 5. Claude processes your request using its full tool set, then speaks the response
 6. Continue the conversation until you say goodbye
+
+## Troubleshooting
+
+**MCP tools not found:** Wait 10 seconds after starting Claude Code for the MCP server to initialize, then try again.
+
+**502 Bad Gateway in browser:** The WebSocket server hasn't started yet. Check `tail -f /tmp/voice-chat.log` for status.
+
+**Port 3456 in use:** The server retries every 5 seconds. Kill any stale processes: `lsof -i:3456` then `kill <pid>`.
