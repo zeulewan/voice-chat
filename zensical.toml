@@ -7,24 +7,32 @@ repo_url = "https://github.com/zeulewan/voice-chat"
 repo_name = "zeulewan/voice-chat"
 copyright = "&copy; 2026 Zeul Mordasiewicz"
 
+
 [project.theme]
 language = "en"
 features = [
+    # Content
     "content.code.copy",
     "content.code.annotate",
     "content.code.select",
     "content.tabs.link",
+    # Navigation
     "navigation.footer",
     "navigation.instant",
     "navigation.instant.prefetch",
     "navigation.instant.progress",
     "navigation.path",
+    # "navigation.indexes", # Do not add this back
     "navigation.prune",
     "navigation.sections",
+    "navigation.tabs",
     "navigation.top",
     "navigation.tracking",
+    # Table of contents
     "toc.follow",
+    # Header
     "header.autohide",
+    # Search
     "search.highlight",
     "search.suggest",
     "search.share",
@@ -33,6 +41,7 @@ features = [
 [project.theme.icon]
 repo = "fontawesome/brands/github"
 
+# Palette toggle for automatic mode
 [[project.theme.palette]]
 media = "(prefers-color-scheme)"
 primary = "blue"
@@ -40,6 +49,7 @@ accent = "blue"
 toggle.icon = "lucide/sun-moon"
 toggle.name = "Switch to light mode"
 
+# Palette toggle for light mode
 [[project.theme.palette]]
 media = "(prefers-color-scheme: light)"
 scheme = "default"
@@ -48,6 +58,7 @@ accent = "blue"
 toggle.icon = "lucide/sun"
 toggle.name = "Switch to dark mode"
 
+# Palette toggle for dark mode
 [[project.theme.palette]]
 media = "(prefers-color-scheme: dark)"
 scheme = "slate"
@@ -90,3 +101,6 @@ custom_fences = [
 
 [project.markdown_extensions.pymdownx.tabbed]
 alternate_style = true
+
+[project.markdown_extensions.pymdownx.tasklist]
+custom_checkbox = true

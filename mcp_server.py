@@ -228,9 +228,9 @@ async def converse(
             log("converse() done (no wait)")
             return "Message delivered."
 
-        # Wait for browser to finish playing audio
+        # Wait for browser to finish playing audio (no timeout — long TTS can take minutes)
         log("Waiting for playback_done event...")
-        await asyncio.wait_for(bridge.playback_done.wait(), timeout=60)
+        await bridge.playback_done.wait()
         log("Playback done")
 
         if bridge.ws is None:
@@ -252,8 +252,8 @@ async def converse(
         await ws.send_json({"type": "listening"})
         log("Sent listening signal, waiting for recorded audio...")
 
-        # Wait for recorded audio
-        audio_bytes = await asyncio.wait_for(bridge.audio_queue.get(), timeout=120)
+        # Wait for recorded audio (no timeout — user taps to stop when ready)
+        audio_bytes = await bridge.audio_queue.get()
         log(f"Got recorded audio: {len(audio_bytes)} bytes")
 
         if bridge.ws is None:
@@ -283,9 +283,6 @@ async def converse(
         log(f"converse() returning: {text!r:.100}")
         return text
 
-    except asyncio.TimeoutError:
-        log("converse() error: timeout")
-        return "Error: Timed out waiting for response."
     except WebSocketDisconnect:
         log("converse() error: WebSocketDisconnect")
         return "Error: Browser disconnected."

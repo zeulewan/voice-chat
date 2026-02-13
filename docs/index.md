@@ -11,28 +11,28 @@ Self-hosted voice chat for Claude — Whisper STT + Kokoro TTS over Tailscale
 
 <div class="grid cards" markdown>
 
--   :material-microphone:{ .lg .middle } **[Getting Started](getting-started.md)**
+-   :material-microphone:{ .lg .middle } **[Getting Started](guide/getting-started.md)**
 
     ---
 
     Install, configure, and run the voice chat server in minutes
 
--   :material-sitemap:{ .lg .middle } **[Architecture](architecture.md)**
+-   :material-sitemap:{ .lg .middle } **[Architecture](guide/architecture.md)**
 
     ---
 
     How the browser, backend, Whisper, Kokoro, and Claude fit together
 
--   :material-cog:{ .lg .middle } **[Configuration](configuration.md)**
+-   :material-cog:{ .lg .middle } **[Configuration](guide/configuration.md)**
 
     ---
 
     Endpoints, environment variables, voice options, and Tailscale setup
 
--   :material-road-variant:{ .lg .middle } **[Roadmap](roadmap.md)**
+-   :material-road-variant:{ .lg .middle } **[Roadmap](roadmap/)**
 
     ---
 
-    Planned features and upcoming changes
+    Planned features, release plans, and development updates
 
 </div>
