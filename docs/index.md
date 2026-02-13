@@ -29,4 +29,10 @@ Self-hosted voice chat for Claude — Whisper STT + Kokoro TTS over Tailscale
 
     Endpoints, environment variables, voice options, and Tailscale setup
 
+-   :material-road-variant:{ .lg .middle } **[Roadmap](roadmap.md)**
+
+    ---
+
+    Planned features and upcoming changes
+
 </div>

@@ -1,13 +1,23 @@
 # Getting Started
 
+## Hardware Requirements
+
+| Component | VRAM | RAM | Notes |
+|-----------|------|-----|-------|
+| Whisper STT | ~640 MB | ~360 MB | whisper.cpp with CUDA, `base` model |
+| Kokoro TTS | ~2 GB | ~3 GB | kokoro-fastapi with GPU inference |
+| **Total** | **~3 GB** | **~3.5 GB** | |
+
+An NVIDIA GPU with at least 4 GB of VRAM is required. Tested on RTX 3090.
+
 ## Prerequisites
 
 !!! info "Required services"
 
     Voice Chat relies on two local services that must be running:
 
-    - **Whisper STT** — GPU-accelerated speech-to-text (port 2022)
-    - **Kokoro TTS** — GPU-accelerated text-to-speech (port 8880)
+    - **Whisper STT** — GPU-accelerated speech-to-text ([whisper.cpp](https://github.com/ggerganov/whisper.cpp), port 2022)
+    - **Kokoro TTS** — GPU-accelerated text-to-speech ([kokoro-fastapi](https://github.com/remsky/kokoro-fastapi), port 8880)
 
     These are managed by [VoiceMode](https://github.com/mbailey/voicemode):
 
@@ -21,6 +31,7 @@ You also need:
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (CLI)
 - Python 3.10+
+- NVIDIA GPU with CUDA support
 - [Tailscale](https://tailscale.com/) (for remote access from other devices)
 
 ## Install
