@@ -19,8 +19,8 @@
 
 You also need:
 
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (CLI)
 - Python 3.10+
-- An [Anthropic API key](https://console.anthropic.com/)
 - [Tailscale](https://tailscale.com/) (for remote access from other devices)
 
 ## Install
@@ -33,22 +33,24 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Configure
+## Register MCP Server
 
-Create a `.env` file with your Anthropic API key:
+Add the voice-chat MCP server to your Claude Code config (`~/.claude.json`):
 
-```bash
-echo "ANTHROPIC_API_KEY=your-key-here" > .env
+```json
+{
+  "mcpServers": {
+    "voice-chat": {
+      "type": "stdio",
+      "command": "/path/to/voice-chat/.venv/bin/python",
+      "args": ["/path/to/voice-chat/mcp_server.py"],
+      "env": {}
+    }
+  }
+}
 ```
 
-## Run
-
-```bash
-source .venv/bin/activate
-python server.py
-```
-
-The server starts on `http://127.0.0.1:3456`.
+Replace `/path/to/voice-chat` with the actual path to the cloned repo.
 
 ## Remote Access via Tailscale
 
@@ -62,7 +64,9 @@ Then open `https://<your-machine>.ts.net:3456` from any device on your tailnet.
 
 ## Usage
 
-1. Open the web UI in your browser
-2. Hold the mic button and speak
-3. Release — your speech is transcribed by Whisper
-4. Claude responds and Kokoro speaks the answer
+1. Start Claude Code — the MCP server launches automatically
+2. Open the web UI in your browser (green dot = connected)
+3. Run `/voice-chat` in Claude Code
+4. Claude greets you — speak your request when prompted
+5. Claude processes your request using its full tool set, then speaks the response
+6. Continue the conversation until you say goodbye

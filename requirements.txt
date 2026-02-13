@@ -1,7 +1,8 @@
 fastapi
 uvicorn
 httpx
-anthropic
 python-dotenv
 python-multipart
 zensical
+fastmcp>=2.14
+websockets
