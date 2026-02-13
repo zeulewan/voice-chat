@@ -1,38 +1,50 @@
 ---
-title: Voice Chat
+title: Home
+icon: lucide/mic
 hide:
   - navigation
   - toc
 ---
 
-<p style="text-align: center; font-size: 1.2em; color: #888; margin-bottom: 2rem;">
-Self-hosted voice chat for Claude — Whisper STT + Kokoro TTS over Tailscale
-</p>
+<h1 style="text-align: center;">Voice Chat</h1>
+<p style="text-align: center;">Self-hosted voice interface for <strong>Claude Code</strong> — local <strong>Whisper STT</strong> and <strong>Kokoro TTS</strong> over <strong>Tailscale</strong></p>
+
+---
 
 <div class="grid cards" markdown>
 
--   :material-microphone:{ .lg .middle } **[Getting Started](guide/getting-started.md)**
+-   :material-microphone:{ .lg .middle } **Getting Started**
 
     ---
 
     Install, configure, and run the voice chat server in minutes
 
--   :material-sitemap:{ .lg .middle } **[Architecture](guide/architecture.md)**
+    [:octicons-arrow-right-24: Quick Start](guide/getting-started.md)
+
+-   :material-sitemap:{ .lg .middle } **Architecture**
 
     ---
 
-    How the browser, backend, Whisper, Kokoro, and Claude fit together
+    How the browser, MCP server, Whisper, Kokoro, and Claude fit together
 
--   :material-cog:{ .lg .middle } **[Configuration](guide/configuration.md)**
+    [:octicons-arrow-right-24: Architecture](guide/architecture.md)
+
+-   :material-cog:{ .lg .middle } **Configuration**
 
     ---
 
     Endpoints, environment variables, voice options, and Tailscale setup
 
--   :material-road-variant:{ .lg .middle } **[Roadmap](roadmap/)**
+    [:octicons-arrow-right-24: Configuration](guide/configuration.md)
+
+-   :material-road-variant:{ .lg .middle } **Roadmap**
 
     ---
 
-    Planned features, release plans, and development updates
+    Release history, planned features, and development updates
+
+    [:octicons-arrow-right-24: Roadmap](roadmap/planned-features.md)
 
 </div>
+
+---

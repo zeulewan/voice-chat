@@ -56,6 +56,18 @@ Replace `/path/to/voice-chat` with the actual path to the cloned repo. Verify wi
 claude mcp list
 ```
 
+## Install Slash Command and Skill
+
+Copy the Claude Code command and skill files from the repo:
+
+```bash
+cp .claude/commands/voice-chat.md ~/.claude/commands/voice-chat.md
+mkdir -p ~/.claude/skills/voice-chat
+cp .claude/skills/voice-chat/skill.md ~/.claude/skills/voice-chat/skill.md
+```
+
+This registers the `/voice-chat` command and teaches Claude how to use the voice tools.
+
 ## Remote Access via Tailscale
 
 Expose the server over HTTPS on your tailnet:
